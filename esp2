@@ -1,4 +1,4 @@
--- Roblox Arsenal ESP + Aimbot completo com menu funcional, FOV circular visível e mira só em inimigos visíveis
+-- Roblox Arsenal ESP + Aimbot completo com menu funcional, FOV circular simples e mira só em inimigos visíveis
 -- ESP: caixas azuis para aliados, vermelhas para inimigos
 -- Aimbot: mira inimigos dentro do círculo de FOV e que estejam visíveis (sem obstáculos)
 -- AVISO: Uso em jogos pode violar Termos de Serviço e resultar em banimento.
@@ -96,7 +96,7 @@ FOVInput.TextSize = 20
 FOVInput.ZIndex = 11
 FOVInput.Parent = Frame
 
--- Círculo de FOV visível (contorno circular)
+-- Círculo de FOV visível (simples, sem segmentos complexos)
 local FOVCircle = Instance.new("Frame")
 FOVCircle.Size = UDim2.new(0, FOVRadius * 2, 0, FOVRadius * 2)
 FOVCircle.Position = UDim2.new(0.5, -FOVRadius, 0.5, -FOVRadius)
@@ -106,25 +106,6 @@ FOVCircle.BorderColor3 = Color3.new(1,1,1)
 FOVCircle.Visible = false
 FOVCircle.ZIndex = 10
 FOVCircle.Parent = ScreenGui
-
-do
-    -- Desenha o círculo com várias segmentações para borda fina
-    local segments = 72
-    local arcLength = 360 / segments
-    local thickness = 1
-
-    for i =1, segments do
-        local segment = Instance.new("Frame")
-        segment.Size = UDim2.new(0, thickness, 0, FOVRadius * math.pi * 2 / segments)
-        segment.AnchorPoint = Vector2.new(0.5, 0)
-        segment.Position = UDim2.new(0.5,0,0.5,0)
-        segment.Rotation = arcLength * (i-1)
-        segment.BackgroundColor3 = Color3.new(1,1,1)
-        segment.BorderSizePixel = 0
-        segment.ZIndex = 11
-        segment.Parent = FOVCircle
-    end
-end
 
 -- Funções auxiliares
 
@@ -353,25 +334,6 @@ FOVInput.FocusLost:Connect(function(enter)
         FOVLabel.Text = "Aimbot FOV: " .. tostring(FOVRadius)
         FOVCircle.Size = UDim2.new(0, FOVRadius * 2, 0, FOVRadius * 2)
         FOVCircle.Position = UDim2.new(0.5, -FOVRadius, 0.5, -FOVRadius)
-        -- Apaga bordas antigas
-        for _, child in pairs(FOVCircle:GetChildren()) do if child:IsA("Frame") then child:Destroy() end end
-        
-        -- Redesenha círculo com segmentos finos
-        local segments = 72
-        local arcLength = 360 / segments
-        local thickness = 1
-
-        for i =1, segments do
-            local segment = Instance.new("Frame")
-            segment.Size = UDim2.new(0, thickness, 0, FOVRadius * math.pi * 2 / segments)
-            segment.AnchorPoint = Vector2.new(0.5, 0)
-            segment.Position = UDim2.new(0.5, 0, 0.5, 0)
-            segment.Rotation = arcLength * (i-1)
-            segment.BackgroundColor3 = Color3.new(1,1,1)
-            segment.BorderSizePixel = 0
-            segment.ZIndex = 11
-            segment.Parent = FOVCircle
-        end
     else
         FOVInput.Text = tostring(FOVRadius)
     end
@@ -395,4 +357,4 @@ end)
 ESPToggle.MouseButton1Click:Connect(ToggleESP)
 AimbotToggle.MouseButton1Click:Connect(ToggleAimbot)
 
-print("Script Arsenal ESP + Aimbot com FOV visível e mira só em inimigos
+print("Script Arsenal ESP + Aimbot com FOV visível e mira só em inimigos visíveis carregado.")
