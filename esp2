@@ -1,4 +1,4 @@
--- Roblox Arsenal ESP + Aimbot completo com menu funcional e FOV circular visível
+-- Roblox Arsenal ESP + Aimbot completo com menu funcional, FOV circular visível e mira só em inimigos visíveis
 -- ESP: caixas azuis para aliados, vermelhas para inimigos
 -- Aimbot: mira inimigos dentro do círculo de FOV e que estejam visíveis (sem obstáculos)
 -- AVISO: Uso em jogos pode violar Termos de Serviço e resultar em banimento.
@@ -395,4 +395,4 @@ end)
 ESPToggle.MouseButton1Click:Connect(ToggleESP)
 AimbotToggle.MouseButton1Click:Connect(ToggleAimbot)
 
-print("Script Arsenal ESP + Aimbot com FOV visível e mira só em inimigos visíveis carregado.")
+print("Script Arsenal ESP + Aimbot com FOV visível e mira só em inimigos
