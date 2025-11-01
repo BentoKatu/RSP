@@ -1,0 +1,217 @@
+-- =============================================
+-- MÓDULOS ADICIONAIS - SEM ALTERAR CÓDIGO EXISTENTE
+-- =============================================
+
+-- === MÓDULO 1: FOV CIRCULAR VISUAL ===
+local FOVVisual = Drawing.new("Circle")
+FOVVisual.Visible = AimbotEnabled
+FOVVisual.Radius = FOVRadius
+FOVVisual.Color = Color3.fromRGB(255, 0, 0)
+FOVVisual.Thickness = 2
+FOVVisual.Filled = false
+FOVVisual.Position = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
+
+-- Atualizar FOV visual quando a tela mudar de tamanho
+Camera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+    FOVVisual.Position = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
+end)
+
+-- === MÓDULO 2: VERIFICAÇÃO DE VISIBILIDADE (RAYCAST) ===
+local function IsPlayerVisible(player)
+    if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
+        return false
+    end
+    
+    local localChar = LocalPlayer.Character
+    if not localChar or not localChar:FindFirstChild("HumanoidRootPart") then
+        return false
+    end
+    
+    local origin = Camera.CFrame.Position
+    local target = player.Character.HumanoidRootPart.Position
+    local direction = (target - origin).Unit
+    
+    -- Raycast para verificar se há obstáculos
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+    raycastParams.FilterDescendantsInstances = {LocalPlayer.Character, player.Character}
+    
+    local raycastResult = workspace:Raycast(origin, direction * 1000, raycastParams)
+    
+    -- Se não houve colisão ou a colisão foi com o próprio jogador, está visível
+    if not raycastResult then
+        return true
+    end
+    
+    -- Verificar se a colisão foi com o jogador alvo
+    if raycastResult.Instance:IsDescendantOf(player.Character) then
+        return true
+    end
+    
+    return false
+end
+
+-- === MÓDULO 3: AIMBOT APERFEIÇOADO (SÓ JOGADORES VISÍVEIS) ===
+local OriginalAimbot = Aimbot
+Aimbot = function()
+    if not AimbotEnabled then return end
+    if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then return end
+
+    local closestDist = math.huge
+    local targetPlayer = nil
+    local localPos = LocalPlayer.Character.HumanoidRootPart.Position
+
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            if not IsSameTeam(player, LocalPlayer) then
+                local hrp = player.Character.HumanoidRootPart
+                
+                -- VERIFICAÇÕES COMBINADAS: FOV + VISIBILIDADE
+                if IsInFOV(hrp.Position) and IsPlayerVisible(player) then
+                    local dist = (localPos - hrp.Position).Magnitude
+                    if dist < closestDist then
+                        closestDist = dist
+                        targetPlayer = player
+                    end
+                end
+            end
+        end
+    end
+
+    if targetPlayer then
+        local targetPos = targetPlayer.Character.HumanoidRootPart.Position
+        Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetPos)
+    end
+end
+
+-- === MÓDULO 4: INDICADOR VISUAL DE ALVO VÁLIDO ===
+local TargetIndicator = Instance.new("Frame")
+TargetIndicator.Size = UDim2.new(0, 20, 0, 20)
+TargetIndicator.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+TargetIndicator.BorderSizePixel = 2
+TargetIndicator.BorderColor3 = Color3.fromRGB(255, 255, 255)
+TargetIndicator.Visible = false
+TargetIndicator.Parent = ScreenGui
+
+local function UpdateTargetIndicator(targetPlayer)
+    if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        local screenPos, onScreen = Camera:WorldToViewportPoint(targetPlayer.Character.HumanoidRootPart.Position)
+        if onScreen then
+            TargetIndicator.Position = UDim2.new(0, screenPos.X - 10, 0, screenPos.Y - 10)
+            TargetIndicator.Visible = true
+            return
+        end
+    end
+    TargetIndicator.Visible = false
+end
+
+-- === MÓDULO 5: ATUALIZAÇÃO DO FOV VISUAL ===
+local function UpdateFOVVisual()
+    FOVVisual.Visible = AimbotEnabled
+    FOVVisual.Radius = FOVRadius
+end
+
+-- Conectar atualização do FOV visual
+FOVInput.FocusLost:Connect(function(enter)
+    if not enter then return end
+    local val = tonumber(FOVInput.Text)
+    if val and val > 10 and val < 1000 then
+        FOVRadius = val
+        FOVLabel.Text = "Aimbot FOV: "..tostring(FOVRadius)
+        FOVCircle.Size = UDim2.new(0, FOVRadius*2, 0, FOVRadius*2)
+        FOVCircle.Position = UDim2.new(0.5, -FOVRadius, 0.5, -FOVRadius)
+        UpdateFOVVisual() -- Atualizar FOV visual também
+    else
+        FOVInput.Text = tostring(FOVRadius)
+    end
+end)
+
+-- === MÓDULO 6: SISTEMA DE DEBUG (OPCIONAL) ===
+local DebugText = Instance.new("TextLabel")
+DebugText.Size = UDim2.new(0, 200, 0, 60)
+DebugText.Position = UDim2.new(0, 10, 0, 300)
+DebugText.BackgroundTransparency = 0.7
+DebugText.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+DebugText.TextColor3 = Color3.fromRGB(255, 255, 255)
+DebugText.TextSize = 12
+DebugText.Text = "DEBUG: Aguardando..."
+DebugText.Visible = false
+DebugText.Parent = ScreenGui
+
+local DebugEnabled = false
+local DebugToggle = Instance.new("TextButton")
+DebugToggle.Size = UDim2.new(0.8, 0, 0, 30)
+DebugToggle.Position = UDim2.new(0.1, 0, 0.8, 0)
+DebugToggle.Text = "Debug: OFF"
+DebugToggle.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+DebugToggle.Parent = Frame
+
+DebugToggle.MouseButton1Click:Connect(function()
+    DebugEnabled = not DebugEnabled
+    DebugToggle.Text = "Debug: " .. (DebugEnabled and "ON" or "OFF")
+    DebugText.Visible = DebugEnabled
+end)
+
+-- === MÓDULO 7: LOOP DE ATUALIZAÇÃO COMBINADO ===
+local function EnhancedUpdate()
+    -- Atualizar FOV visual
+    UpdateFOVVisual()
+    
+    -- Encontrar alvo atual para o indicador
+    if AimbotEnabled then
+        local currentTarget = nil
+        local closestDist = math.huge
+        
+        for _, player in pairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                if not IsSameTeam(player, LocalPlayer) then
+                    local hrp = player.Character.HumanoidRootPart
+                    if IsInFOV(hrp.Position) and IsPlayerVisible(player) then
+                        local dist = (LocalPlayer.Character.HumanoidRootPart.Position - hrp.Position).Magnitude
+                        if dist < closestDist then
+                            closestDist = dist
+                            currentTarget = player
+                        end
+                    end
+                end
+            end
+        end
+        
+        UpdateTargetIndicator(currentTarget)
+        
+        -- Debug info
+        if DebugEnabled then
+            local visiblePlayers = 0
+            for _, player in pairs(Players:GetPlayers()) do
+                if player ~= LocalPlayer and IsPlayerVisible(player) then
+                    visiblePlayers = visiblePlayers + 1
+                end
+            end
+            DebugText.Text = string.format("Alvos: %d\nVisíveis: %d\nFOV: %d", 
+                #Players:GetPlayers() - 1, visiblePlayers, FOVRadius)
+        end
+    else
+        TargetIndicator.Visible = false
+    end
+end
+
+-- Conectar loop de atualização
+RunService.RenderStepped:Connect(EnhancedUpdate)
+
+-- === MÓDULO 8: ATUALIZAR TOGGLE AIMBOT PARA NOVO SISTEMA ===
+local OriginalToggleAimbot = ToggleAimbot
+ToggleAimbot = function()
+    OriginalToggleAimbot()
+    UpdateFOVVisual()
+    if not AimbotEnabled then
+        TargetIndicator.Visible = false
+    end
+end
+
+print("=== MÓDULOS AVANÇADOS ADICIONADOS ===")
+print("✅ FOV Circular Visual")
+print("✅ Verificação de Visibilidade (Raycast)")
+print("✅ Aimbot só para jogadores visíveis")
+print("✅ Indicador de Alvo Válido")
+print("✅ Sistema de Debug Opcional")
+print("✅ ESP e Aimbot completamente separados")
