@@ -1,116 +1,107 @@
--- Script Roblox Arsenal completo: ESP com caixas azuis para aliados e vermelhas para inimigos + Aimbot com círculo de FOV
--- AVISO: Uso de cheats pode resultar em banimento e viola os termos do Roblox. Apenas para fins educacionais.
+-- Roblox Arsenal ESP + Aimbot com FOV circular visível e checagem de visibilidade para aimbot
+-- ESP: caixas azuis para aliados e vermelhas para inimigos
+-- Aimbot: mira inimigos dentro do FOV e visíveis (sem obstáculos)
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
+local Workspace = workspace
 
 local LocalPlayer = Players.LocalPlayer
-local Camera = workspace.CurrentCamera
+local Camera = Workspace.CurrentCamera
 
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "EnhancedESP_Aimbot"
 ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
--- === Variáveis e Configurações ===
 local ESPBoxes = {}
 local AimbotEnabled = false
-local FOVRadius = 100  -- pixels padrão para círculo de FOV
+local ESPEnabled = false
+local FOVRadius = 100 -- raio do círculo FOV em pixels padrão
 local AimbotConnection
 
--- Criação do Menu GUI
-local Frame = Instance.new("Frame")
-Frame.Size = UDim2.new(0, 320, 0, 280)
-Frame.Position = UDim2.new(0.5, -160, 0.5, -140)
-Frame.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-Frame.BorderSizePixel = 2
-Frame.Parent = ScreenGui
-Frame.Active = true
-Frame.Draggable = true
-
-local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, 0, 0, 35)
-Title.Text = "Arsenal ESP & Aimbot"
-Title.TextColor3 = Color3.new(1,1,1)
-Title.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-Title.Parent = Frame
-
--- Botão ESP
-local ESPToggle = Instance.new("TextButton")
-ESPToggle.Size = UDim2.new(0.8, 0, 0, 40)
-ESPToggle.Position = UDim2.new(0.1, 0, 0.18, 0)
-ESPToggle.Text = "ESP: OFF"
-ESPToggle.BackgroundColor3 = Color3.fromRGB(100,100,100)
-ESPToggle.Parent = Frame
-
--- Botão Aimbot
-local AimbotToggle = Instance.new("TextButton")
-AimbotToggle.Size = UDim2.new(0.8, 0, 0, 40)
-AimbotToggle.Position = UDim2.new(0.1, 0, 0.4, 0)
-AimbotToggle.Text = "Aimbot: OFF"
-AimbotToggle.BackgroundColor3 = Color3.fromRGB(100,100,100)
-AimbotToggle.Parent = Frame
-
--- Slider Label para FOV
-local FOVLabel = Instance.new("TextLabel")
-FOVLabel.Size = UDim2.new(0.8, 0, 0, 20)
-FOVLabel.Position = UDim2.new(0.1, 0, 0.62, 0)
-FOVLabel.BackgroundTransparency = 1
-FOVLabel.TextColor3 = Color3.new(1,1,1)
-FOVLabel.Text = "Aimbot FOV: "..tostring(FOVRadius)
-FOVLabel.Parent = Frame
-
--- Entrada para alterar FOV pelo usuário
-local FOVInput = Instance.new("TextBox")
-FOVInput.Size = UDim2.new(0.8, 0, 0, 30)
-FOVInput.Position = UDim2.new(0.1, 0, 0.68, 0)
-FOVInput.Text = tostring(FOVRadius)
-FOVInput.BackgroundColor3 = Color3.fromRGB(100,100,100)
-FOVInput.ClearTextOnFocus = false
-FOVInput.Parent = Frame
-
--- Círculo do FOV na tela
+-- Criação do círculo de FOV (transparente, borda fina)
 local FOVCircle = Instance.new("Frame")
-FOVCircle.Size = UDim2.new(0, FOVRadius*2, 0, FOVRadius*2)
+FOVCircle.Size = UDim2.new(0, FOVRadius * 2, 0, FOVRadius * 2)
 FOVCircle.Position = UDim2.new(0.5, -FOVRadius, 0.5, -FOVRadius)
-FOVCircle.BackgroundTransparency = 0.85
-FOVCircle.BackgroundColor3 = Color3.fromRGB(255,0,0)
+FOVCircle.BackgroundTransparency = 1
 FOVCircle.BorderSizePixel = 2
-FOVCircle.BorderColor3 = Color3.new(1,1,1)
+FOVCircle.BorderColor3 = Color3.fromRGB(255, 255, 255)
 FOVCircle.Visible = false
+FOVCircle.ZIndex = 10
 FOVCircle.Parent = ScreenGui
 
-local ESPEnabled = false
+local function DrawCircle(parent, radius, thickness, color)
+    local segments = 72
+    local arcLength = 360 / segments
 
--- Função TeamCheck Arsenal
+    for i = 1, segments do
+        local segment = Instance.new("Frame")
+        segment.Size = UDim2.new(0, thickness, 0, radius * 2 * math.pi / segments)
+        segment.AnchorPoint = Vector2.new(0.5, 0)
+        segment.Position = UDim2.new(0.5, 0, 0.5, 0)
+        segment.Rotation = arcLength * (i -1)
+        segment.BackgroundColor3 = color
+        segment.BorderSizePixel = 0
+        segment.Parent = parent
+    end
+end
+
+-- Apagar possíveis filhos antes e redesenhar círculo com borda fina branca
+for _, child in pairs(FOVCircle:GetChildren()) do
+    child:Destroy()
+end
+DrawCircle(FOVCircle, FOVRadius, 1, Color3.new(1,1,1))
+
+-- Função para detectar se dois players são do mesmo time
 local function IsSameTeam(p1, p2)
     return p1.Team ~= nil and p2.Team ~= nil and p1.Team == p2.Team
 end
 
--- Função para criar/atualizar ESP
+-- Verifica visibilidade (raycast simples para checar se está atrás de parede)
+local function IsVisible(origin, targetPos)
+    local direction = (targetPos - origin)
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterDescendantsInstances = {LocalPlayer.Character}
+    raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+    local ray = Workspace:Raycast(origin, direction, raycastParams)
+    if ray then
+        local distToHit = (ray.Position - origin).Magnitude
+        local distToTarget = direction.Magnitude
+        if distToHit + 0.01 < distToTarget then
+            return false -- algo bloqueando visão
+        else
+            return true -- linha livre para o alvo
+        end
+    else
+        return true -- nada bloqueando
+    end
+end
+
+-- Atualiza o ESP para todos jogadores (azul para aliados, vermelho para inimigos)
 local function UpdateESP(player)
     if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
         if ESPBoxes[player] then
-            local data = ESPBoxes[player]
-            data.Box.Visible = false
-            data.NameTag.Visible = false
-            data.DistanceText.Visible = false
+            local data=ESPBoxes[player]
+            data.Box.Visible=false
+            data.NameTag.Visible=false
+            data.DistanceText.Visible=false
         end
         return
     end
-
     local hrp = player.Character.HumanoidRootPart
-    local screenPos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
+    local screenPos,onScreen = Camera:WorldToViewportPoint(hrp.Position)
     if not onScreen then
         if ESPBoxes[player] then
-            local data = ESPBoxes[player]
-            data.Box.Visible = false
-            data.NameTag.Visible = false
-            data.DistanceText.Visible = false
+            local data=ESPBoxes[player]
+            data.Box.Visible=false
+            data.NameTag.Visible=false
+            data.DistanceText.Visible=false
         end
         return
     end
 
+    -- Calcula bounding box aproximada em 2D pela projeção dos vértices do cubo do jogador
     local size = Vector3.new(4,6,4)
     local points = {
         Vector3.new(-size.X/2, size.Y/2, -size.Z/2),
@@ -122,24 +113,23 @@ local function UpdateESP(player)
         Vector3.new(size.X/2, -size.Y/2, size.Z/2),
         Vector3.new(-size.X/2, -size.Y/2, size.Z/2),
     }
-
     local screenCorners = {}
+
     for _, point in ipairs(points) do
         local worldPoint = hrp.CFrame:PointToWorldSpace(point)
-        local screenPoint,_ = Camera:WorldToViewportPoint(worldPoint)
-        table.insert(screenCorners, Vector2.new(screenPoint.X, screenPoint.Y))
+        local sp,_ = Camera:WorldToViewportPoint(worldPoint)
+        table.insert(screenCorners, Vector2.new(sp.X, sp.Y))
     end
 
-    local minX, minY = math.huge, math.huge
-    local maxX, maxY = -math.huge, -math.huge
-    for _, p in ipairs(screenCorners) do
+    local minX,minY = math.huge, math.huge
+    local maxX,maxY = -math.huge, -math.huge
+    for _, p in pairs(screenCorners) do
         if p.X < minX then minX = p.X end
         if p.Y < minY then minY = p.Y end
         if p.X > maxX then maxX = p.X end
         if p.Y > maxY then maxY = p.Y end
     end
 
-    -- Criar GUI se não existir
     if not ESPBoxes[player] then
         local box = Instance.new("Frame")
         box.BorderSizePixel = 2
@@ -150,7 +140,7 @@ local function UpdateESP(player)
         local nameTag = Instance.new("TextLabel")
         nameTag.Size = UDim2.new(0, 100, 0, 25)
         nameTag.BackgroundTransparency = 1
-        nameTag.TextColor3 = Color3.new(1,1,1)
+        nameTag.TextColor3 = Color3.new(1, 1, 1)
         nameTag.TextStrokeTransparency = 0
         nameTag.TextScaled = true
         nameTag.ZIndex = 5
@@ -159,93 +149,108 @@ local function UpdateESP(player)
         local distanceText = Instance.new("TextLabel")
         distanceText.Size = UDim2.new(0, 100, 0, 20)
         distanceText.BackgroundTransparency = 1
-        distanceText.TextColor3 = Color3.new(1,1,1)
+        distanceText.TextColor3 = Color3.new(1, 1, 1)
         distanceText.TextStrokeTransparency = 0
         distanceText.TextScaled = true
         distanceText.ZIndex = 5
         distanceText.Parent = ScreenGui
 
-        ESPBoxes[player] = {
-            Box = box,
-            NameTag = nameTag,
-            DistanceText = distanceText
-        }
+        ESPBoxes[player] = {Box=box, NameTag=nameTag, DistanceText=distanceText}
     end
 
-    local data = ESPBoxes[player]
+    local data=ESPBoxes[player]
 
-    -- Definir cor conforme time
     if IsSameTeam(player, LocalPlayer) then
-        data.Box.BackgroundColor3 = Color3.fromRGB(0, 102, 255) -- azul translúcido
-        data.Box.BorderColor3 = Color3.fromRGB(50,150,255)
+        data.Box.BackgroundColor3=Color3.fromRGB(0, 102, 255)
+        data.Box.BorderColor3=Color3.fromRGB(50, 150, 255)
     else
-        data.Box.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- vermelho translúcido
-        data.Box.BorderColor3 = Color3.fromRGB(255, 80, 80)
+        data.Box.BackgroundColor3=Color3.fromRGB(255, 0, 0)
+        data.Box.BorderColor3=Color3.fromRGB(255, 80, 80)
     end
 
-    -- Atualizar posição e tamanho
-    data.Box.Position = UDim2.new(0, minX, 0, minY)
-    data.Box.Size = UDim2.new(0, maxX - minX, 0, maxY - minY)
-    data.Box.Visible = ESPEnabled
+    data.Box.Position=UDim2.new(0, minX, 0, minY)
+    data.Box.Size=UDim2.new(0, maxX - minX, 0, maxY - minY)
+    data.Box.Visible=ESPEnabled
 
-    data.NameTag.Position = UDim2.new(0, minX, 0, minY - 25)
-    data.NameTag.Size = UDim2.new(0, maxX - minX, 0, 25)
-    data.NameTag.Text = player.Name
-    data.NameTag.Visible = ESPEnabled
+    data.NameTag.Position=UDim2.new(0, minX, 0, minY - 25)
+    data.NameTag.Size=UDim2.new(0, maxX - minX, 0, 25)
+    data.NameTag.Text=player.Name
+    data.NameTag.Visible=ESPEnabled
 
-    local dist = (LocalPlayer.Character.HumanoidRootPart.Position - hrp.Position).Magnitude
-    data.DistanceText.Position = UDim2.new(0, minX, 0, maxY + 3)
-    data.DistanceText.Size = UDim2.new(0, maxX - minX, 0, 20)
-    data.DistanceText.Text = string.format("%.1f studs", dist)
-    data.DistanceText.Visible = ESPEnabled
+    local dist=(LocalPlayer.Character.HumanoidRootPart.Position - hrp.Position).Magnitude
+    data.DistanceText.Position=UDim2.new(0, minX, 0, maxY + 2)
+    data.DistanceText.Size=UDim2.new(0, maxX - minX, 0, 20)
+    data.DistanceText.Text=string.format("%.1f studs", dist)
+    data.DistanceText.Visible=ESPEnabled
 end
 
--- Remove caixas GUI de jogadores removidos
+-- Remove caixas ao sair
 Players.PlayerRemoving:Connect(function(player)
     if ESPBoxes[player] then
-        ESPBoxes[player].Box:Destroy()
-        ESPBoxes[player].NameTag:Destroy()
-        ESPBoxes[player].DistanceText:Destroy()
-        ESPBoxes[player] = nil
+        local d=ESPBoxes[player]
+        d.Box:Destroy()
+        d.NameTag:Destroy()
+        d.DistanceText:Destroy()
+        ESPBoxes[player]=nil
     end
 end)
 
--- Função que verifica se posição está dentro do círculo de FOV (em pixels)
+-- Verifica se o ponto está dentro do círculo FOV
 local function IsInFOV(worldPos)
-    local screenPos, onScreen = Camera:WorldToViewportPoint(worldPos)
+    local screenPos,onScreen=Camera:WorldToViewportPoint(worldPos)
     if not onScreen then return false end
-    local center = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
-    local pos2D = Vector2.new(screenPos.X, screenPos.Y)
-    return (pos2D - center).Magnitude <= FOVRadius
+    local center=Vector2.new(Camera.ViewportSize.X/2,Camera.ViewportSize.Y/2)
+    local point2D=Vector2.new(screenPos.X,screenPos.Y)
+    return (point2D - center).Magnitude <= FOVRadius
 end
 
--- Aimbot: mira no inimigo mais próximo dentro do círculo de FOV
+-- Aimbot mira inimigos visíveis e dentro do círculo de FOV
 local function Aimbot()
     if not AimbotEnabled then return end
-    if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then return end
+    if not (LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")) then return end
 
-    local closestDist = math.huge
-    local targetPlayer = nil
-    local localPos = LocalPlayer.Character.HumanoidRootPart.Position
+    local origin=LocalPlayer.Character.HumanoidRootPart.Position
+    local closestDist=math.huge
+    local targetPlayer=nil
 
     for _, player in pairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
             if not IsSameTeam(player, LocalPlayer) then
-                local hrp = player.Character.HumanoidRootPart
+                local hrp=player.Character.HumanoidRootPart
                 if IsInFOV(hrp.Position) then
-                    local dist = (localPos - hrp.Position).Magnitude
-                    if dist < closestDist then
-                        closestDist = dist
-                        targetPlayer = player
+                    -- Verifica visibilidade (linha de visão livre)
+                    if (function()
+                        local direction = (hrp.Position - origin)
+                        local raycastParams = RaycastParams.new()
+                        raycastParams.FilterDescendantsInstances = {LocalPlayer.Character}
+                        raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+                        local ray = Workspace:Raycast(origin, direction, raycastParams)
+                        if ray then
+                            local distToHit = (ray.Position - origin).Magnitude
+                            local distToTarget = direction.Magnitude
+                            if distToHit + 0.01 < distToTarget then
+                                return false -- obstáculo entre você e o alvo
+                            else
+                                return true
+                            end
+                        else
+                            return true -- nada bloqueando
+                        end
+                    end)() then
+                        local dist=(origin - hrp.Position).Magnitude
+                        if dist < closestDist then
+                            closestDist = dist
+                            targetPlayer = player
+                        end
                     end
                 end
             end
         end
     end
 
-    if targetPlayer then
+    if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
         local targetPos = targetPlayer.Character.HumanoidRootPart.Position
-        Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetPos)
+        Camera.CFrame=CFrame.new(Camera.CFrame.Position, targetPos)
     end
 end
 
@@ -254,7 +259,6 @@ local function ToggleESP()
     ESPEnabled = not ESPEnabled
     ESPToggle.Text = "ESP: " .. (ESPEnabled and "ON" or "OFF")
 
-    -- Se desabilitar ESP, esconder todas as caixas
     if not ESPEnabled then
         for _, data in pairs(ESPBoxes) do
             data.Box.Visible = false
@@ -282,30 +286,45 @@ local function ToggleAimbot()
     end
 end
 
--- Atualizar FOV com input
+-- Atualiza FOV pelo input do usuário
 FOVInput.FocusLost:Connect(function(enter)
     if not enter then return end
     local val = tonumber(FOVInput.Text)
-    if val and val > 10 and val < 1000 then
+    if val and val >= 10 and val <= 600 then
         FOVRadius = val
-        FOVLabel.Text = "Aimbot FOV: "..tostring(FOVRadius)
-        FOVCircle.Size = UDim2.new(0, FOVRadius*2, 0, FOVRadius*2)
+        FOVLabel.Text = "Aimbot FOV: " .. tostring(FOVRadius)
+        FOVCircle.Size = UDim2.new(0, FOVRadius * 2, 0, FOVRadius * 2)
         FOVCircle.Position = UDim2.new(0.5, -FOVRadius, 0.5, -FOVRadius)
+        -- Redesenhar círculo com nova dimensão:
+        for _, child in pairs(FOVCircle:GetChildren()) do child:Destroy() end
+        local segments = 72
+        local arcLength = 360 / segments
+        local thickness = 1
+        for i = 1, segments do
+            local segment = Instance.new("Frame")
+            segment.Size = UDim2.new(0, thickness, 0, FOVRadius * math.pi * 2 / segments)
+            segment.AnchorPoint = Vector2.new(0.5, 0)
+            segment.Position = UDim2.new(0.5,0,0.5,0)
+            segment.Rotation = arcLength * (i-1)
+            segment.BackgroundColor3 = Color3.new(1,1,1)
+            segment.BorderSizePixel = 0
+            segment.Parent = FOVCircle
+        end
     else
         FOVInput.Text = tostring(FOVRadius)
     end
 end)
 
--- Atualizar ESP no loop principal
+-- Loop principal para atualizar ESP
 RunService.RenderStepped:Connect(function()
     for _, player in pairs(Players:GetPlayers()) do
         if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
             UpdateESP(player)
         elseif ESPBoxes[player] then
-            local data = ESPBoxes[player]
-            data.Box.Visible = false
-            data.NameTag.Visible = false
-            data.DistanceText.Visible = false
+            local data=ESPBoxes[player]
+            data.Box.Visible=false
+            data.NameTag.Visible=false
+            data.DistanceText.Visible=false
         end
     end
 end)
@@ -314,4 +333,4 @@ end)
 ESPToggle.MouseButton1Click:Connect(ToggleESP)
 AimbotToggle.MouseButton1Click:Connect(ToggleAimbot)
 
-print("Script Arsenal ESP + Aimbot carregado. Use o menu para ativar/desativar e ajustar FOV do aimbot.")
+print("Script Arsenal ESP + Aimbot com FOV visível e mira só em inimig
