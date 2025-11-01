@@ -1,7 +1,8 @@
--- This is a basic Lua script for Roblox that creates a GUI menu with toggles for ESP (Extra Sensory Perception) and Aimbot.
+-- Modified Lua script for Roblox Arsenal with ESP and Aimbot, including team check, bounding boxes, distance meters, and health bars.
 -- WARNING: Using cheats like this violates Roblox's Terms of Service and can result in bans. This is for educational purposes only.
+-- This script is tailored for Arsenal (game ID: 286090429). It may not work perfectly in other games due to anti-cheat.
 -- To use this, you need a Roblox exploit/injector that allows running custom Lua scripts in-game (e.g., Synapse X, Krnl, etc.).
--- Paste this into your exploit's script executor and run it in a Roblox game.
+-- Paste this into your exploit's script executor and run it in Arsenal.
 
 -- Create the GUI menu
 local ScreenGui = Instance.new("ScreenGui")
@@ -17,7 +18,7 @@ Frame.Parent = ScreenGui
 
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 30)
-Title.Text = "Cheat Menu"
+Title.Text = "Arsenal Cheat Menu"
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 Title.Parent = Frame
@@ -44,27 +45,99 @@ local AimbotEnabled = false
 local ESPConnections = {}
 local AimbotConnection = nil
 
--- Function to create ESP for a player
-local function CreateESP(player)
-    if player == game.Players.LocalPlayer then return end
-    local character = player.Character
-    if not character then return end
+-- Function to get player team (in Arsenal, teams are set via Player.Team)
+local function GetPlayerTeam(player)
+    return player.Team
+end
 
+-- Function to check if two players are on the same team
+local function IsSameTeam(player1, player2)
+    local team1 = GetPlayerTeam(player1)
+    local team2 = GetPlayerTeam(player2)
+    return team1 and team2 and team1 == team2
+end
+
+-- Function to create ESP for a player (with team check, box, distance, and health)
+local function CreateESP(player)
+    if player == game.Players.LocalPlayer or IsSameTeam(player, game.Players.LocalPlayer) then return end
+    local character = player.Character
+    if not character or not character:FindFirstChild("HumanoidRootPart") then return end
+
+    -- Highlight (glow)
     local highlight = Instance.new("Highlight")
     highlight.Adornee = character
     highlight.FillColor = Color3.fromRGB(255, 0, 0)
     highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
     highlight.Parent = character
 
-    table.insert(ESPConnections, highlight)
+    -- Bounding Box (3D box around the character)
+    local box = Instance.new("BoxHandleAdornment")
+    box.Adornee = character:FindFirstChild("HumanoidRootPart")
+    box.Size = Vector3.new(4, 6, 4)  -- Approximate size for a player
+    box.Color3 = Color3.fromRGB(255, 0, 0)
+    box.Transparency = 0.5
+    box.ZIndex = 1
+    box.AlwaysOnTop = true
+    box.Parent = character
+
+    -- Distance Meter (text label showing distance)
+    local distanceLabel = Instance.new("BillboardGui")
+    distanceLabel.Adornee = character:FindFirstChild("Head") or character.HumanoidRootPart
+    distanceLabel.Size = UDim2.new(0, 100, 0, 50)
+    distanceLabel.StudsOffset = Vector3.new(0, 3, 0)
+    distanceLabel.AlwaysOnTop = true
+    distanceLabel.Parent = character
+
+    local distanceText = Instance.new("TextLabel")
+    distanceText.Size = UDim2.new(1, 0, 0.5, 0)
+    distanceText.TextColor3 = Color3.fromRGB(255, 255, 255)
+    distanceText.BackgroundTransparency = 1
+    distanceText.TextScaled = true
+    distanceText.Parent = distanceLabel
+
+    -- Health Bar (progress bar for health)
+    local healthBar = Instance.new("Frame")
+    healthBar.Size = UDim2.new(1, 0, 0.5, 0)
+    healthBar.Position = UDim2.new(0, 0, 0.5, 0)
+    healthBar.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+    healthBar.BorderSizePixel = 1
+    healthBar.Parent = distanceLabel
+
+    local healthFill = Instance.new("Frame")
+    healthFill.Size = UDim2.new(1, 0, 1, 0)
+    healthFill.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+    healthFill.BorderSizePixel = 0
+    healthFill.Parent = healthBar
+
+    -- Update function for distance and health
+    local updateConnection = game:GetService("RunService").RenderStepped:Connect(function()
+        if not character or not character:FindFirstChild("HumanoidRootPart") then
+            updateConnection:Disconnect()
+            return
+        end
+        local localPos = game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if localPos then
+            local dist = (character.HumanoidRootPart.Position - localPos.Position).Magnitude
+            distanceText.Text = string.format("Dist: %.1f", dist)
+        end
+        local humanoid = character:FindFirstChild("Humanoid")
+        if humanoid then
+            local healthPercent = humanoid.Health / humanoid.MaxHealth
+            healthFill.Size = UDim2.new(healthPercent, 0, 1, 0)
+        end
+    end)
+
+    -- Store connections for cleanup
+    table.insert(ESPConnections, {highlight = highlight, box = box, distanceLabel = distanceLabel, updateConnection = updateConnection})
 end
 
 -- Function to remove ESP
 local function RemoveESP()
     for _, conn in ipairs(ESPConnections) do
-        if conn and conn.Parent then
-            conn:Destroy()
-        end
+        if conn.highlight and conn.highlight.Parent then conn.highlight:Destroy() end
+        if conn.box and conn.box.Parent then conn.box:Destroy() end
+        if conn.distanceLabel and conn.distanceLabel.Parent then conn.distanceLabel:Destroy() end
+        if conn.updateConnection then conn.updateConnection:Disconnect() end
     end
     ESPConnections = {}
 end
@@ -88,18 +161,17 @@ local function ToggleESP()
     end
 end
 
--- Aimbot function (basic: aims at closest enemy)
+-- Aimbot function (basic: aims at closest enemy, with team check)
 local function Aimbot()
     if not AimbotEnabled then return end
     local localPlayer = game.Players.LocalPlayer
     local camera = workspace.CurrentCamera
-    local mouse = localPlayer:GetMouse()
 
     local closestPlayer = nil
     local closestDistance = math.huge
 
     for _, player in ipairs(game.Players:GetPlayers()) do
-        if player ~= localPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+        if player ~= localPlayer and not IsSameTeam(player, localPlayer) and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
             local distance = (player.Character.HumanoidRootPart.Position - localPlayer.Character.HumanoidRootPart.Position).Magnitude
             if distance < closestDistance then
                 closestDistance = distance
@@ -132,7 +204,7 @@ end
 ESPToggle.MouseButton1Click:Connect(ToggleESP)
 AimbotToggle.MouseButton1Click:Connect(ToggleAimbot)
 
--- Make the menu draggable
+-- Make the menu draggable (same as before)
 local dragging = false
 local dragInput
 local dragStart
@@ -169,4 +241,4 @@ game:GetService("UserInputService").InputChanged:Connect(function(input)
     end
 end)
 
-print("Cheat menu loaded. Use the GUI to toggle ESP and Aimbot.")
+print("Arsenal cheat menu loaded. Use the GUI to toggle ESP and Aimbot. Features include team check, bounding boxes, distance meters, and health bars.")
