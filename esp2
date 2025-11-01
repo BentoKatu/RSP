@@ -1,4 +1,4 @@
--- Modified Lua script for Roblox Arsenal with ESP and Aimbot, including team check, bounding boxes, distance meters, health bars, and FOV-based Aimbot.
+-- Modified Lua script for Roblox Arsenal with ESP (showing only allies/teammates) and Aimbot (FOV-based with circle, targeting enemies).
 -- WARNING: Using cheats like this violates Roblox's Terms of Service and can result in bans. This is for educational purposes only.
 -- This script is tailored for Arsenal (game ID: 286090429). It may not work perfectly in other games due to anti-cheat.
 -- To use this, you need a Roblox exploit/injector that allows running custom Lua scripts in-game (e.g., Synapse X, Krnl, etc.).
@@ -10,7 +10,7 @@ ScreenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
 ScreenGui.Name = "CheatMenu"
 
 local Frame = Instance.new("Frame")
-Frame.Size = UDim2.new(0, 300, 0, 250)  -- Increased height for new FOV slider
+Frame.Size = UDim2.new(0, 300, 0, 250)  -- Height for FOV slider
 Frame.Position = UDim2.new(0.5, -150, 0.5, -125)
 Frame.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
 Frame.BorderSizePixel = 2
@@ -23,11 +23,11 @@ Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 Title.Parent = Frame
 
--- ESP Toggle
+-- ESP Toggle (now for allies only)
 local ESPToggle = Instance.new("TextButton")
 ESPToggle.Size = UDim2.new(0.8, 0, 0, 40)
 ESPToggle.Position = UDim2.new(0.1, 0, 0.15, 0)
-ESPToggle.Text = "ESP: OFF"
+ESPToggle.Text = "ESP (Allies): OFF"
 ESPToggle.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
 ESPToggle.Parent = Frame
 
@@ -62,7 +62,7 @@ local ESPConnections = {}
 local AimbotConnection = nil
 local FOVRadius = 100  -- Default FOV in pixels
 
--- FOV Circle visualization
+-- FOV Circle visualization (red circle for aimbot targeting area)
 local FOVCircle = Instance.new("Frame")
 FOVCircle.Size = UDim2.new(0, FOVRadius * 2, 0, FOVRadius * 2)
 FOVCircle.Position = UDim2.new(0.5, -FOVRadius, 0.5, -FOVRadius)
@@ -85,24 +85,24 @@ local function IsSameTeam(player1, player2)
     return team1 and team2 and team1 == team2
 end
 
--- Function to create ESP for a player (with team check, box, distance, and health)
+-- Function to create ESP for a player (now only for allies/teammates, with box, distance, and health)
 local function CreateESP(player)
-    if player == game.Players.LocalPlayer or IsSameTeam(player, game.Players.LocalPlayer) then return end
+    if player == game.Players.LocalPlayer or not IsSameTeam(player, game.Players.LocalPlayer) then return end  -- Only allies
     local character = player.Character
     if not character or not character:FindFirstChild("HumanoidRootPart") then return end
 
-    -- Highlight (glow)
+    -- Highlight (glow for allies - green)
     local highlight = Instance.new("Highlight")
     highlight.Adornee = character
-    highlight.FillColor = Color3.fromRGB(255, 0, 0)
+    highlight.FillColor = Color3.fromRGB(0, 255, 0)  -- Green for allies
     highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
     highlight.Parent = character
 
-    -- Bounding Box (3D box around the character)
+    -- Bounding Box (3D box around the character - green)
     local box = Instance.new("BoxHandleAdornment")
     box.Adornee = character:FindFirstChild("HumanoidRootPart")
     box.Size = Vector3.new(4, 6, 4)  -- Approximate size for a player
-    box.Color3 = Color3.fromRGB(255, 0, 0)
+    box.Color3 = Color3.fromRGB(0, 255, 0)  -- Green for allies
     box.Transparency = 0.5
     box.ZIndex = 1
     box.AlwaysOnTop = true
@@ -173,7 +173,7 @@ end
 -- Function to enable/disable ESP
 local function ToggleESP()
     ESPEnabled = not ESPEnabled
-    ESPToggle.Text = "ESP: " .. (ESPEnabled and "ON" or "OFF")
+    ESPToggle.Text = "ESP (Allies): " .. (ESPEnabled and "ON" or "OFF")
     if ESPEnabled then
         for _, player in ipairs(game.Players:GetPlayers()) do
             CreateESP(player)
@@ -198,7 +198,7 @@ local function IsInFOV(targetPos, camera, fovRadius)
     return distance <= fovRadius
 end
 
--- Aimbot function (FOV-based: aims at closest enemy within the FOV circle, with team check)
+-- Aimbot function (FOV-based: aims at closest enemy within the FOV circle, with team check - skips allies)
 local function Aimbot()
     if not AimbotEnabled then return end
     local localPlayer = game.Players.LocalPlayer
@@ -208,7 +208,7 @@ local function Aimbot()
     local closestDistance = math.huge
 
     for _, player in ipairs(game.Players:GetPlayers()) do
-        if player ~= localPlayer and not IsSameTeam(player, localPlayer) and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+        if player ~= localPlayer and not IsSameTeam(player, localPlayer) and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then  -- Team check: only enemies
             local targetPos = player.Character.HumanoidRootPart.Position
             if IsInFOV(targetPos, camera, FOVRadius) then
                 local distance = (targetPos - localPlayer.Character.HumanoidRootPart.Position).Magnitude
@@ -260,7 +260,7 @@ end)
 ESPToggle.MouseButton1Click:Connect(ToggleESP)
 AimbotToggle.MouseButton1Click:Connect(ToggleAimbot)
 
--- Make the menu draggable (same as before)
+-- Make the menu draggable
 local dragging = false
 local dragInput
 local dragStart
@@ -297,4 +297,4 @@ game:GetService("UserInputService").InputChanged:Connect(function(input)
     end
 end)
 
-print("Arsenal cheat menu loaded. Use the GUI to toggle ESP and Aimbot. Aimbot now uses a FOV circle (adjustable). Features include team check, bounding boxes, distance meters, and health bars.")
+print("Arsenal cheat menu loaded. ESP now shows only allies (green). Aimbot targets enemies within the red FOV circle. Team checks are enforced.")
