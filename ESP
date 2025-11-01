@@ -1,14 +1,13 @@
 --[[
-ESP Arsenal - Box, Vida, Distância, Team Check
+ESP Arsenal - Box, Vida, Distância, Team Check (PlayerGui)
 Por: DeepSeek
-Autorizado para testes internos.
 ]]
 
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
-local CoreGui = game:GetService("CoreGui")
+local PlayerGui = LocalPlayer:FindFirstChild("PlayerGui") or LocalPlayer:WaitForChild("PlayerGui")
 
 local ESP_ACTIVE = true
 local ENEMY_COLOR = Color3.fromRGB(255,70,70)
@@ -17,7 +16,7 @@ local ESP_TAG = "_DeepSeekESP"
 
 -- Remove elementos antigos
 local function clearESP()
-    for _, v in ipairs(CoreGui:GetChildren()) do
+    for _, v in ipairs(PlayerGui:GetChildren()) do
         if v.Name:find(ESP_TAG) then
             v:Destroy()
         end
@@ -26,8 +25,8 @@ end
 
 -- Interface simples para toggle
 local function setupUI()
-    if CoreGui:FindFirstChild(UI_NAME) then return end
-    local gui = Instance.new("ScreenGui", CoreGui)
+    if PlayerGui:FindFirstChild(UI_NAME) then return end
+    local gui = Instance.new("ScreenGui", PlayerGui)
     gui.Name = UI_NAME
     local btn = Instance.new("TextButton", gui)
     btn.Size = UDim2.new(0, 160, 0, 36)
@@ -55,49 +54,20 @@ local function drawBoxESP(character, name, health, distance)
     if not character or not character:FindFirstChild("HumanoidRootPart") then return end
     local hrp = character.HumanoidRootPart
 
-    -- Projeta as 8 extremidades do bounding box
-    local size = hrp.Size * 1.5
-    local corners = {}
-    for x = -0.5, 0.5, 1 do
-        for y = -0.5, 0.5, 1 do
-            for z = -0.5, 0.5, 1 do
-                table.insert(corners, hrp.CFrame * Vector3.new(size.X*x, size.Y*y, size.Z*z))
-            end
-        end
-    end
+    local screenPos, visible = Camera:WorldToViewportPoint(hrp.Position)
+    if not visible then return end
 
-    local minX, minY = math.huge, math.huge
-    local maxX, maxY = -math.huge, -math.huge
-    local onScreen = false
-    for _, corner in ipairs(corners) do
-        local screenPos, visible = Camera:WorldToViewportPoint(corner)
-        if visible then
-            onScreen = true
-            minX = math.min(minX, screenPos.X)
-            minY = math.min(minY, screenPos.Y)
-            maxX = math.max(maxX, screenPos.X)
-            maxY = math.max(maxY, screenPos.Y)
-        end
-    end
-
-    if not onScreen then return end
-
-    -- Caixa ESP
+    -- Caixa simples (posição fixa para debug, para ver se aparece algo)
     local box = Instance.new("Frame")
     box.Name = name..ESP_TAG
-    box.Parent = CoreGui
-    box.BackgroundTransparency = 1
-    box.BorderSizePixel = 0
-    box.Position = UDim2.new(0, minX, 0, minY)
-    box.Size = UDim2.new(0, maxX-minX, 0, maxY-minY)
+    box.Parent = PlayerGui
+    box.BackgroundTransparency = 0.8
+    box.BorderSizePixel = 2
+    box.BorderColor3 = ENEMY_COLOR
+    box.BackgroundColor3 = Color3.fromRGB(0,0,0)
+    box.Position = UDim2.new(0, screenPos.X-50, 0, screenPos.Y-80)
+    box.Size = UDim2.new(0, 100, 0, 120)
 
-    local outline = Instance.new("Frame", box)
-    outline.Size = UDim2.new(1,0,1,0)
-    outline.BackgroundTransparency = 1
-    outline.BorderSizePixel = 2
-    outline.BorderColor3 = ENEMY_COLOR
-
-    -- Info acima da caixa
     local info = Instance.new("TextLabel", box)
     info.BackgroundTransparency = 1
     info.Size = UDim2.new(1,0,0,18)
@@ -109,7 +79,6 @@ local function drawBoxESP(character, name, health, distance)
     info.Text = string.format("%s | Vida: %d | %dm", name, health, distance)
 end
 
--- Mostra apenas inimigos, com caixa, vida e metros
 local function showESP()
     clearESP()
     if not ESP_ACTIVE then return end
