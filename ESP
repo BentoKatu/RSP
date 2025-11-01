@@ -1,0 +1,128 @@
+--[[
+ESP Arsenal - Box, Vida, Distância, Team Check
+Por: DeepSeek
+Autorizado para testes internos.
+]]
+
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+local CoreGui = game:GetService("CoreGui")
+
+local ESP_ACTIVE = true
+local ENEMY_COLOR = Color3.fromRGB(255,70,70)
+local UI_NAME = "DeepSeek_ESP_UI"
+local ESP_TAG = "_DeepSeekESP"
+
+-- Remove elementos antigos
+local function clearESP()
+    for _, v in ipairs(CoreGui:GetChildren()) do
+        if v.Name:find(ESP_TAG) then
+            v:Destroy()
+        end
+    end
+end
+
+-- Interface simples para toggle
+local function setupUI()
+    if CoreGui:FindFirstChild(UI_NAME) then return end
+    local gui = Instance.new("ScreenGui", CoreGui)
+    gui.Name = UI_NAME
+    local btn = Instance.new("TextButton", gui)
+    btn.Size = UDim2.new(0, 160, 0, 36)
+    btn.Position = UDim2.new(0, 12, 0, 10)
+    btn.BackgroundColor3 = Color3.fromRGB(32,32,32)
+    btn.TextColor3 = Color3.fromRGB(220,220,220)
+    btn.TextSize = 18
+    btn.Font = Enum.Font.GothamBold
+    btn.Text = "ESP: ON"
+    btn.MouseButton1Click:Connect(function()
+        ESP_ACTIVE = not ESP_ACTIVE
+        btn.Text = "ESP: " .. (ESP_ACTIVE and "ON" or "OFF")
+    end)
+end
+
+-- Calcula distância em metros
+local function getDistance(pos)
+    local char = LocalPlayer.Character
+    if not char or not char:FindFirstChild("HumanoidRootPart") then return 0 end
+    return math.floor((char.HumanoidRootPart.Position - pos).Magnitude)
+end
+
+-- Desenha o ESP de caixa com informações
+local function drawBoxESP(character, name, health, distance)
+    if not character or not character:FindFirstChild("HumanoidRootPart") then return end
+    local hrp = character.HumanoidRootPart
+
+    -- Projeta as 8 extremidades do bounding box
+    local size = hrp.Size * 1.5
+    local corners = {}
+    for x = -0.5, 0.5, 1 do
+        for y = -0.5, 0.5, 1 do
+            for z = -0.5, 0.5, 1 do
+                table.insert(corners, hrp.CFrame * Vector3.new(size.X*x, size.Y*y, size.Z*z))
+            end
+        end
+    end
+
+    local minX, minY = math.huge, math.huge
+    local maxX, maxY = -math.huge, -math.huge
+    local onScreen = false
+    for _, corner in ipairs(corners) do
+        local screenPos, visible = Camera:WorldToViewportPoint(corner)
+        if visible then
+            onScreen = true
+            minX = math.min(minX, screenPos.X)
+            minY = math.min(minY, screenPos.Y)
+            maxX = math.max(maxX, screenPos.X)
+            maxY = math.max(maxY, screenPos.Y)
+        end
+    end
+
+    if not onScreen then return end
+
+    -- Caixa ESP
+    local box = Instance.new("Frame")
+    box.Name = name..ESP_TAG
+    box.Parent = CoreGui
+    box.BackgroundTransparency = 1
+    box.BorderSizePixel = 0
+    box.Position = UDim2.new(0, minX, 0, minY)
+    box.Size = UDim2.new(0, maxX-minX, 0, maxY-minY)
+
+    local outline = Instance.new("Frame", box)
+    outline.Size = UDim2.new(1,0,1,0)
+    outline.BackgroundTransparency = 1
+    outline.BorderSizePixel = 2
+    outline.BorderColor3 = ENEMY_COLOR
+
+    -- Info acima da caixa
+    local info = Instance.new("TextLabel", box)
+    info.BackgroundTransparency = 1
+    info.Size = UDim2.new(1,0,0,18)
+    info.Position = UDim2.new(0,0,0,-18)
+    info.Font = Enum.Font.GothamSemibold
+    info.TextSize = 13
+    info.TextStrokeTransparency = 0.35
+    info.TextColor3 = ENEMY_COLOR
+    info.Text = string.format("%s | Vida: %d | %dm", name, health, distance)
+end
+
+-- Mostra apenas inimigos, com caixa, vida e metros
+local function showESP()
+    clearESP()
+    if not ESP_ACTIVE then return end
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character:FindFirstChildOfClass("Humanoid") then
+            if p.Team ~= LocalPlayer.Team then
+                local dist = getDistance(p.Character.HumanoidRootPart.Position)
+                local health = math.floor(p.Character:FindFirstChildOfClass("Humanoid").Health)
+                drawBoxESP(p.Character, p.Name, health, dist)
+            end
+        end
+    end
+end
+
+setupUI()
+RunService.RenderStepped:Connect(showESP)
