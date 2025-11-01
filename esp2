@@ -1,4 +1,4 @@
--- Modified Lua script for Roblox Arsenal with ESP and Aimbot, including team check, bounding boxes, distance meters, and health bars.
+-- Modified Lua script for Roblox Arsenal with ESP and Aimbot, including team check, bounding boxes, distance meters, health bars, and FOV-based Aimbot.
 -- WARNING: Using cheats like this violates Roblox's Terms of Service and can result in bans. This is for educational purposes only.
 -- This script is tailored for Arsenal (game ID: 286090429). It may not work perfectly in other games due to anti-cheat.
 -- To use this, you need a Roblox exploit/injector that allows running custom Lua scripts in-game (e.g., Synapse X, Krnl, etc.).
@@ -10,8 +10,8 @@ ScreenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
 ScreenGui.Name = "CheatMenu"
 
 local Frame = Instance.new("Frame")
-Frame.Size = UDim2.new(0, 300, 0, 200)
-Frame.Position = UDim2.new(0.5, -150, 0.5, -100)
+Frame.Size = UDim2.new(0, 300, 0, 250)  -- Increased height for new FOV slider
+Frame.Position = UDim2.new(0.5, -150, 0.5, -125)
 Frame.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
 Frame.BorderSizePixel = 2
 Frame.Parent = ScreenGui
@@ -26,7 +26,7 @@ Title.Parent = Frame
 -- ESP Toggle
 local ESPToggle = Instance.new("TextButton")
 ESPToggle.Size = UDim2.new(0.8, 0, 0, 40)
-ESPToggle.Position = UDim2.new(0.1, 0, 0.2, 0)
+ESPToggle.Position = UDim2.new(0.1, 0, 0.15, 0)
 ESPToggle.Text = "ESP: OFF"
 ESPToggle.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
 ESPToggle.Parent = Frame
@@ -34,16 +34,44 @@ ESPToggle.Parent = Frame
 -- Aimbot Toggle
 local AimbotToggle = Instance.new("TextButton")
 AimbotToggle.Size = UDim2.new(0.8, 0, 0, 40)
-AimbotToggle.Position = UDim2.new(0.1, 0, 0.5, 0)
+AimbotToggle.Position = UDim2.new(0.1, 0, 0.35, 0)
 AimbotToggle.Text = "Aimbot: OFF"
 AimbotToggle.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
 AimbotToggle.Parent = Frame
+
+-- FOV Slider for Aimbot
+local FOVLabel = Instance.new("TextLabel")
+FOVLabel.Size = UDim2.new(0.8, 0, 0, 20)
+FOVLabel.Position = UDim2.new(0.1, 0, 0.55, 0)
+FOVLabel.Text = "Aimbot FOV: 100"
+FOVLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+FOVLabel.BackgroundTransparency = 1
+FOVLabel.Parent = Frame
+
+local FOVSlider = Instance.new("TextBox")
+FOVSlider.Size = UDim2.new(0.8, 0, 0, 30)
+FOVSlider.Position = UDim2.new(0.1, 0, 0.65, 0)
+FOVSlider.Text = "100"
+FOVSlider.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+FOVSlider.Parent = Frame
 
 -- Variables for features
 local ESPEnabled = false
 local AimbotEnabled = false
 local ESPConnections = {}
 local AimbotConnection = nil
+local FOVRadius = 100  -- Default FOV in pixels
+
+-- FOV Circle visualization
+local FOVCircle = Instance.new("Frame")
+FOVCircle.Size = UDim2.new(0, FOVRadius * 2, 0, FOVRadius * 2)
+FOVCircle.Position = UDim2.new(0.5, -FOVRadius, 0.5, -FOVRadius)
+FOVCircle.BackgroundTransparency = 0.8
+FOVCircle.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+FOVCircle.BorderSizePixel = 2
+FOVCircle.BorderColor3 = Color3.fromRGB(255, 255, 255)
+FOVCircle.Visible = false
+FOVCircle.Parent = ScreenGui
 
 -- Function to get player team (in Arsenal, teams are set via Player.Team)
 local function GetPlayerTeam(player)
@@ -161,7 +189,16 @@ local function ToggleESP()
     end
 end
 
--- Aimbot function (basic: aims at closest enemy, with team check)
+-- Function to check if a position is within the FOV circle
+local function IsInFOV(targetPos, camera, fovRadius)
+    local screenPos, onScreen = camera:WorldToViewportPoint(targetPos)
+    if not onScreen then return false end
+    local center = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
+    local distance = (Vector2.new(screenPos.X, screenPos.Y) - center).Magnitude
+    return distance <= fovRadius
+end
+
+-- Aimbot function (FOV-based: aims at closest enemy within the FOV circle, with team check)
 local function Aimbot()
     if not AimbotEnabled then return end
     local localPlayer = game.Players.LocalPlayer
@@ -172,10 +209,13 @@ local function Aimbot()
 
     for _, player in ipairs(game.Players:GetPlayers()) do
         if player ~= localPlayer and not IsSameTeam(player, localPlayer) and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-            local distance = (player.Character.HumanoidRootPart.Position - localPlayer.Character.HumanoidRootPart.Position).Magnitude
-            if distance < closestDistance then
-                closestDistance = distance
-                closestPlayer = player
+            local targetPos = player.Character.HumanoidRootPart.Position
+            if IsInFOV(targetPos, camera, FOVRadius) then
+                local distance = (targetPos - localPlayer.Character.HumanoidRootPart.Position).Magnitude
+                if distance < closestDistance then
+                    closestDistance = distance
+                    closestPlayer = player
+                end
             end
         end
     end
@@ -190,6 +230,7 @@ end
 local function ToggleAimbot()
     AimbotEnabled = not AimbotEnabled
     AimbotToggle.Text = "Aimbot: " .. (AimbotEnabled and "ON" or "OFF")
+    FOVCircle.Visible = AimbotEnabled
     if AimbotEnabled then
         AimbotConnection = game:GetService("RunService").RenderStepped:Connect(Aimbot)
     else
@@ -199,6 +240,21 @@ local function ToggleAimbot()
         end
     end
 end
+
+-- Update FOV from slider
+FOVSlider.FocusLost:Connect(function(enterPressed)
+    if enterPressed then
+        local newFOV = tonumber(FOVSlider.Text)
+        if newFOV and newFOV > 0 then
+            FOVRadius = newFOV
+            FOVLabel.Text = "Aimbot FOV: " .. FOVRadius
+            FOVCircle.Size = UDim2.new(0, FOVRadius * 2, 0, FOVRadius * 2)
+            FOVCircle.Position = UDim2.new(0.5, -FOVRadius, 0.5, -FOVRadius)
+        else
+            FOVSlider.Text = tostring(FOVRadius)
+        end
+    end
+end)
 
 -- Connect toggles
 ESPToggle.MouseButton1Click:Connect(ToggleESP)
@@ -241,4 +297,4 @@ game:GetService("UserInputService").InputChanged:Connect(function(input)
     end
 end)
 
-print("Arsenal cheat menu loaded. Use the GUI to toggle ESP and Aimbot. Features include team check, bounding boxes, distance meters, and health bars.")
+print("Arsenal cheat menu loaded. Use the GUI to toggle ESP and Aimbot. Aimbot now uses a FOV circle (adjustable). Features include team check, bounding boxes, distance meters, and health bars.")
